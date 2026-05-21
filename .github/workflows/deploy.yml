@@ -1,0 +1,32 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver of the version to deploy (e.g. 0.1.0)"
+        required: true
+      environment:
+        description: "Target environment name"
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Deploy
+        run: |
+          echo "Deploying version ${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}"
+          # TODO: replace with actual deploy steps (Cloud Run, GKE, etc.)
