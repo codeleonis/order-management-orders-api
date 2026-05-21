@@ -1,0 +1,21 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/infrastructure/postgres/product/queries/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "productdb"
+        out: "internal/infrastructure/postgres/product/sqlc"
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_exact_table_names: false
+        sql_package: "pgx/v5"
+        overrides:
+          - db_type: "pg_catalog.numeric"
+            go_type: "float64"
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              package: "uuid"
+              type: "UUID"
