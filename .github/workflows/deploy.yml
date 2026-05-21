@@ -9,6 +9,9 @@ on:
       environment:
         description: "Target environment name"
         required: true
+      deployment_id:
+        description: "Leonis deployment ID (UUID) for status callback"
+        required: true
 
 jobs:
   deploy:
@@ -30,3 +33,21 @@ jobs:
         run: |
           echo "Deploying version ${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}"
           # TODO: replace with actual deploy steps (Cloud Run, GKE, etc.)
+
+      - name: Notify Leonis (success)
+        if: success()
+        run: |
+          curl -sf -X POST \
+            "${{ secrets.LEONIS_API_URL }}/api/v1/deployments/${{ github.event.inputs.deployment_id }}/deploy-status" \
+            -H "Content-Type: application/json" \
+            -H "X-Build-Token: ${{ secrets.BUILD_TOKEN }}" \
+            -d '{"status":"SUCCESS"}'
+
+      - name: Notify Leonis (failure)
+        if: failure()
+        run: |
+          curl -sf -X POST \
+            "${{ secrets.LEONIS_API_URL }}/api/v1/deployments/${{ github.event.inputs.deployment_id }}/deploy-status" \
+            -H "Content-Type: application/json" \
+            -H "X-Build-Token: ${{ secrets.BUILD_TOKEN }}" \
+            -d '{"status":"FAILED"}'
