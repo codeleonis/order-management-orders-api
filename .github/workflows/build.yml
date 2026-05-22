@@ -16,17 +16,13 @@ on:
         description: "Commit SHA to build"
         required: true
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
   build:
     name: Build ${{ github.event.inputs.semver }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -34,19 +30,23 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Build and push Docker image
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ secrets.AR_HOST }}" --quiet
+
+      - name: Build and push to Artifact Registry
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.semver }}
+          tags: ${{ secrets.AR_REGISTRY }}/${{ github.event.repository.name }}:${{ github.event.inputs.semver }}
 
       - name: Create GitHub Release
         if: success()
@@ -56,7 +56,7 @@ jobs:
           gh release create "v${{ github.event.inputs.semver }}" \
             --target "${{ github.event.inputs.commit_sha }}" \
             --title "v${{ github.event.inputs.semver }}" \
-            --notes "Docker image: \`ghcr.io/${{ github.repository }}:${{ github.event.inputs.semver }}\`"
+            --notes "Image: \`${{ secrets.AR_REGISTRY }}/${{ github.event.repository.name }}:${{ github.event.inputs.semver }}\`"
 
       - name: Notify Leonis — READY
         if: success()
@@ -64,7 +64,7 @@ jobs:
           curl -s -f -X POST "${{ secrets.LEONIS_API_URL }}/api/v1/service-versions/${{ github.event.inputs.version_id }}/build-status" \
             -H "Content-Type: application/json" \
             -H "X-Build-Token: ${{ secrets.BUILD_TOKEN }}" \
-            -d "{\"status\":\"READY\",\"artifact_url\":\"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.semver }}\"}"
+            -d "{\"status\":\"READY\",\"artifact_url\":\"${{ secrets.AR_REGISTRY }}/${{ github.event.repository.name }}:${{ github.event.inputs.semver }}\"}"
 
       - name: Notify Leonis — FAILED
         if: failure()
