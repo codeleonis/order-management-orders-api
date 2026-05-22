@@ -12,27 +12,44 @@ on:
       deployment_id:
         description: "Leonis deployment ID (UUID) for status callback"
         required: true
+      image_url:
+        description: "Full Artifact Registry image URL to deploy"
+        required: true
+      cloud_run_service:
+        description: "Cloud Run service name (e.g. leonis-d19e0b61)"
+        required: true
+      gcp_project:
+        description: "GCP project ID"
+        required: true
+      gcp_region:
+        description: "GCP region (e.g. us-central1)"
+        required: true
 
 jobs:
   deploy:
     name: Deploy ${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
         with:
-          go-version-file: go.mod
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Build
-        run: go build ./...
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy
+      - name: Deploy to Cloud Run
         run: |
-          echo "Deploying version ${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}"
-          # TODO: replace with actual deploy steps (Cloud Run, GKE, etc.)
+          gcloud run deploy "${{ github.event.inputs.cloud_run_service }}" \
+            --image "${{ github.event.inputs.image_url }}" \
+            --region "${{ github.event.inputs.gcp_region }}" \
+            --project "${{ github.event.inputs.gcp_project }}" \
+            --platform managed \
+            --quiet
 
       - name: Notify Leonis (success)
         if: success()
