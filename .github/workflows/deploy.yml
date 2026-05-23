@@ -24,6 +24,10 @@ on:
       gcp_region:
         description: "GCP region (e.g. us-central1)"
         required: true
+      database_url:
+        description: "DATABASE_URL to inject into the Cloud Run service (optional)"
+        required: false
+        default: ""
 
 jobs:
   deploy:
@@ -43,13 +47,21 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy to Cloud Run
+        env:
+          DATABASE_URL: ${{ github.event.inputs.database_url }}
         run: |
+          EXTRA_FLAGS=""
+          if [ -n "$DATABASE_URL" ]; then
+            python3 -c "import os, yaml; yaml.dump({'DATABASE_URL': os.environ['DATABASE_URL']}, open('/tmp/env_vars.yaml', 'w'))"
+            EXTRA_FLAGS="--env-vars-file /tmp/env_vars.yaml"
+          fi
           gcloud run deploy "${{ github.event.inputs.cloud_run_service }}" \
             --image "${{ github.event.inputs.image_url }}" \
             --region "${{ github.event.inputs.gcp_region }}" \
             --project "${{ github.event.inputs.gcp_project }}" \
             --platform managed \
-            --quiet
+            --quiet \
+            $EXTRA_FLAGS
 
       - name: Notify Leonis (success)
         if: success()
